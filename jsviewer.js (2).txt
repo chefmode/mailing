@@ -1,0 +1,131 @@
+/**
+ * Automail v1.01 
+ */
+
+// Activates spreadsheet
+var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+function sendMail() {
+
+	// Defines input sheet
+	var sheet = ss.getSheetByName("Input");
+
+	// First row of data
+	var startRow = 2;
+
+	// getLastRow() returns number of rows in input sheet
+	// numRows is used to stop iterating.
+	var numRows = sheet.getLastRow() - 1; // determines length of loop
+
+	// Fetch exact input range
+	var dataRange = sheet.getRange(startRow, 1, numRows, 6);
+
+	// Fetch values for each row in dataRange
+	var data = dataRange.getValues();
+
+	// looper iterates through rows by adding the loop variable (i) to the starting value (0) as long as {i < total number of rows}
+	for (var i = 0; i < data.length; i++) {
+
+		// i is used to 
+		var row = data[i];
+		var emailAddress = row[2]; // Third column
+		var invoiceNo = row[3]; // Fourth column: invoice number
+		var language = row[4]; // Fifth column: language used for message
+		var companyName = row[5]; // Sixth column: consigning company (PAH, MTB or MTU)
+		Logger.log(`Factuur ${invoiceNo} is verzonden`); // log message
+
+		// companies
+		switch (companyName) {
+			case "PAH":
+				var company = "Pon's Automobielhandel";
+				break;
+			case "MTB":
+				var company = "Man Truck & Bus";
+				break;
+			case "MTU":
+				var company = "Man TopUsed";
+				break;
+			default:
+				var company = "Pon's Automobielhandel";
+				Logger.log(company);
+		}
+
+		var end;
+		// Message components EN/NL:
+		var NL = `Geachte relatie,\n\nOnlangs hebben we factuur met factuurnummer ${invoiceNo} van u ontvangen. Helaas kunnen wij deze niet in behandeling nemen omdat het bestelnummer ontbreekt.\n\nWij verzoeken u vriendelijk om de factuur te voorzien van een bestelnummer en deze opnieuw toe te sturen. Indien u geen bestelnummer heeft ontvangen of het nummer niet bekend is, neem dan contact op met uw contactpersoon binnen ${company}.\n\nMet vriendelijke groet,\n\nAccounts Payable || ${company}\n\nT / +31 33 494 97 67\nE / accounts.payable.pah@pon.com`
+		var EN = `Dear partner,\n\nWe have recently received your invoice. However, we cannot process this invoice, as it doesn't refer to a purchase order. Therefore, our kind request to resend the invoice, including the purchase order reference.\n\nIn case this reference has not been provided to you, please request your contact person at Pon to provide you with one.\n\nWith kind regards,\n\n${end}`;
+
+
+		// Allows to send message in English. 
+		// Default = Dutch.
+		if (language === "EN") {
+			var subject = `Action required - invoice ${invoiceNo}`
+		} else {
+			var subject = `Actie vereist - factuur ${invoiceNo}`
+		};
+
+		if (language === "EN") {
+			var message = EN
+		} else {
+			var message = NL
+		};
+
+		// Sends function
+		MailApp.sendEmail(emailAddress, subject, message, {
+			name: 'Accounts Payable'
+		});
+		sheet.getRange(startRow + i, 7).setValue("EMAIL_SENT");
+	};
+};
+
+function archive() {
+	var input = ss.getSheetByName("Input");
+	var startRow = 2;
+	var inputlr = input.getLastRow() - 1;
+	var inputRange = input.getRange(startRow, 1, inputlr, 6)
+	var inputData = inputRange.getValues();
+
+	var output = ss.getSheetByName("Archief");
+	var outputlr = output.getLastRow() + 1;
+	var outputRange = output.getRange(outputlr, 1, inputlr, 6);
+
+	outputRange.setValues(inputData);
+	input.deleteRows(startRow, inputlr);
+
+	// set timestamp;
+	var output = ss.getSheetByName("Archief");
+	var stampCell = output.getRange(outputlr, 6, inputlr, 1);
+	if (stampCell.getColumn() == 6) { // checks that the cell being edited is in column A
+		var nextCell = stampCell.offset(0, 1);
+		if (nextCell.getValue() === '') //checks if the adjacent cell is empty or not?
+			nextCell.setValue(new Date());
+	};
+};
+
+
+function executeAll() {
+	// only call this function from the sheet itself.
+	// acceses user interface of spreadsheetapp and creates a custom menu.
+
+	SpreadsheetApp.getUi()
+		.createMenu('Custom Menu')
+		.addItem('Show alert', 'showAlert')
+		.addToUi();
+
+	var ui = SpreadsheetApp.getUi();
+	var result = ui.alert(
+		'Please confirm',
+		'Are you sure you want to continue?',
+		ui.ButtonSet.YES_NO);
+	// Process the user's response.
+
+	if (result == ui.Button.YES) {
+		// User clicked "Yes". Runs full script.
+		sendMail();
+		archive();
+		SpreadsheetApp.getUi().alert("E-mails sent!");
+	} else {
+		// User clicked "No" or X in the title bar.
+		ui.alert('Permission denied.');
+	};
+};
